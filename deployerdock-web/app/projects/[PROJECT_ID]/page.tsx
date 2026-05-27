@@ -196,8 +196,9 @@ export default function ProjectDetailsPage() {
             `Project ${project?.PROJECT_ID} is live! Visiting site...`
           );
           if (
-            !process.env.NEXT_PUBLIC_APP_URL_DOMAIN ||
-            process.env.NEXT_PUBLIC_APP_URL_DOMAIN.startsWith("localhost")
+            !process.env.NEXT_PUBLIC_APP_URL_DOMAIN 
+            // ||
+            // process.env.NEXT_PUBLIC_APP_URL_DOMAIN.startsWith("localhost")
           ) {
             toast.error(
               "Preview links are not available currently. Sorry for the inconvenience."
@@ -258,8 +259,9 @@ export default function ProjectDetailsPage() {
   const handleVisitSiteClick = (e: React.MouseEvent) => {
     e.preventDefault();
     if (
-      !process.env.NEXT_PUBLIC_APP_URL_DOMAIN ||
-      process.env.NEXT_PUBLIC_APP_URL_DOMAIN.startsWith("localhost")
+      !process.env.NEXT_PUBLIC_APP_URL_DOMAIN 
+      // ||
+      // process.env.NEXT_PUBLIC_APP_URL_DOMAIN.startsWith("localhost")
     ) {
       toast.error(
         "Preview links are not available currently. Sorry for the inconvenience."

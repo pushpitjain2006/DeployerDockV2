@@ -17,8 +17,16 @@ const REDIS_USERNAME = process.env.REDIS_USERNAME || "default";
 const REDIS_PASSWORD = process.env.REDIS_PASSWORD;
 const PROJECT_ID = process.env.PROJECT_ID;
 
+const AWS_REGION = process.env.AWS_REGION;
+const AWS_S3_BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME;
+
+if (!AWS_REGION || !AWS_S3_BUCKET_NAME) {
+  console.error("AWS_REGION and AWS_S3_BUCKET_NAME must be set.");
+  process.exit(1);
+}
+
 const s3Client = new S3Client({
-  region: "ap-south-1",
+  region: AWS_REGION,
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
@@ -38,11 +46,13 @@ async function initRedisPublisher() {
     socket: {
       host: REDIS_HOST,
       port: REDIS_PORT,
+      connectTimeout: 5000,
+      reconnectStrategy: false,
     },
   });
 
   client.on("error", (err) => {
-    console.error("Redis Publisher Error:", err);
+    console.error("Redis Publisher Error:", err.message);
   });
 
   try {
@@ -50,7 +60,7 @@ async function initRedisPublisher() {
     console.log("Connected to Redis (Publisher)");
     publisher = client;
   } catch (err) {
-    console.error("Failed to connect to Redis:", err);
+    console.error("Failed to connect to Redis, logs will only go to stdout:", err.message);
   }
 }
 
@@ -125,7 +135,7 @@ async function init() {
       if (fs.lstatSync(fullFilePath).isDirectory()) continue;
 
       const command = new PutObjectCommand({
-        Bucket: "kodo-hashira-universal-bucket",
+        Bucket: AWS_S3_BUCKET_NAME,
         Key: `__output/${PROJECT_ID}/${filePath}`,
         Body: fs.createReadStream(fullFilePath),
         ContentType: mime.lookup(filePath),
@@ -137,8 +147,10 @@ async function init() {
     }
     console.log("DONE");
     await publishLog("Completed the build for project: " + PROJECT_ID);
-    publisher.disconnect();
-    console.log("Redis publisher disconnected.");
+    if (publisher) {
+      publisher.disconnect();
+      console.log("Redis publisher disconnected.");
+    }
   });
 }
 

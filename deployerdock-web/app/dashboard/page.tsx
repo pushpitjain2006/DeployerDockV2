@@ -137,17 +137,18 @@ export default function Dashboard() {
   const handlePreviewClick = (e: React.MouseEvent, projectId: string) => {
     e.preventDefault();
     if (
-      !process.env.NEXT_PUBLIC_APP_URL_DOMAIN ||
-      process.env.NEXT_PUBLIC_APP_URL_DOMAIN.startsWith("localhost")
+      !process.env.NEXT_PUBLIC_APP_URL_DOMAIN
+      // ||
+      // process.env.NEXT_PUBLIC_APP_URL_DOMAIN.startsWith("localhost")
     ) {
       toast.error(
-        "Preview links are not available currently. Sorry for the inconvenience."
+        "Preview links are not available currently. Sorry for the inconvenience.",
       );
       return;
     }
     window.open(
       `http://${projectId}.${process.env.NEXT_PUBLIC_APP_URL_DOMAIN}`,
-      "_blank"
+      "_blank",
     );
   };
 
@@ -231,7 +232,7 @@ export default function Dashboard() {
                       <span className="font-medium">
                         {
                           Object.entries(projects)?.filter(
-                            ([_, project]) => project.STATUS !== "Failed"
+                            ([_, project]) => project.STATUS !== "Failed",
                           ).length
                         }
                       </span>
@@ -398,13 +399,13 @@ export default function Dashboard() {
                                   <Calendar className="w-3 h-3" />
                                   Created{" "}
                                   {new Date(
-                                    project.CREATED_AT
+                                    project.CREATED_AT,
                                   ).toLocaleString()}
                                 </div>
                                 <div>
                                   Last deploy{" "}
                                   {new Date(
-                                    project.LAST_DEPLOY
+                                    project.LAST_DEPLOY,
                                   ).toLocaleString()}
                                 </div>
                               </div>
@@ -424,8 +425,8 @@ export default function Dashboard() {
                             }
                           >
                             <div>
-                            <ExternalLink className="w-3 h-3 mr-1" />
-                            Preview
+                              <ExternalLink className="w-3 h-3 mr-1" />
+                              Preview
                             </div>
                           </Button>
                           <Button variant="outline" size="sm" asChild>

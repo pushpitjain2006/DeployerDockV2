@@ -73,8 +73,9 @@ export default function ProjectsPage() {
   const handlePreviewClick = (e: React.MouseEvent, PROJECT_ID: string) => {
     e.preventDefault();
     if (
-      !process.env.NEXT_PUBLIC_APP_URL_DOMAIN ||
-      process.env.NEXT_PUBLIC_APP_URL_DOMAIN.startsWith("localhost")
+      !process.env.NEXT_PUBLIC_APP_URL_DOMAIN 
+      // ||
+      // process.env.NEXT_PUBLIC_APP_URL_DOMAIN.startsWith("localhost")
     ) {
       toast.error(
         "Preview links are not available currently. Sorry for the inconvenience."
