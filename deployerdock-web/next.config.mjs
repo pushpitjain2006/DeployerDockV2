@@ -9,6 +9,19 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  async rewrites() {
+    return [
+      {
+        source: "/sample-deployment",
+        destination: "/sample-deployment/index.html",
+      },
+      {
+        source: "/sample-deployment/",
+        destination: "/sample-deployment/index.html",
+      },
+    ];
+  },
 }
 
 export default nextConfig
+

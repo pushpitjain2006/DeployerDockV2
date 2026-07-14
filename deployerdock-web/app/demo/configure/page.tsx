@@ -247,7 +247,7 @@ export default function DemoConfigurePage() {
                   <div className="mt-6">
                     <Button
                       className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
-                      onClick={() => router.push("/demo/deploying")}
+                      onClick={() => router.push("/projects/pushpit-portfolio?demo=true")}
                     >
                       <Zap className="w-4 h-4 mr-2" />
                       Continue to Deploy

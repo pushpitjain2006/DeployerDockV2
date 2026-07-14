@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft,
   ExternalLink,
+  FlaskConical,
   GitBranch,
   Settings,
   Activity,
@@ -23,15 +24,70 @@ import {
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { projectType } from "@/types/project";
 import { useUser } from "@clerk/nextjs";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
 
+// ─── Demo constants ──────────────────────────────────────────────────────────
+
+const DEMO_PROJECT: projectType = {
+  PROJECT_ID: "pushpit-portfolio",
+  GIT_REPOSITORY_URL: "https://github.com/pushpitjain2006/portfolio-website",
+  BASE_DIR: "./",
+  INSTALL_COMMAND: "npm install",
+  BUILD_COMMAND: "npm run build",
+  BUILD_FOLDER_NAME: "dist",
+  STATUS: "Building",
+  CREATED_AT: "2025-11-01T10:00:00Z",
+  LAST_DEPLOY: new Date().toISOString(),
+};
+
+const DEMO_LOGS = [
+  "Cloning repository: https://github.com/pushpitjain2006/portfolio-website",
+  "Checkout: branch → main",
+  "Resolving dependencies...",
+  "Installing dependencies (npm install)...",
+  "added 247 packages in 4.83s",
+  "Running build command: npm run build",
+  "> portfolio-website@1.0.0 build",
+  "> vite build",
+  "vite v5.2.0 building for production...",
+  "transforming (1/45):   index.html",
+  "transforming (12/45):  src/components/Navbar.tsx",
+  "transforming (27/45):  src/components/Hero.tsx",
+  "transforming (38/45):  src/components/Projects.tsx",
+  "transforming (45/45):  src/assets/icons.ts",
+  "✓ 45 modules transformed.",
+  "dist/index.html             1.32 kB │ gzip:  0.78 kB",
+  "dist/assets/index.css      12.40 kB │ gzip:  3.82 kB",
+  "dist/assets/index.js      154.22 kB │ gzip: 51.10 kB",
+  "✓ built in 3.24s",
+  "Uploading build artifacts to S3...",
+  "  Uploading: dist/index.html",
+  "  Uploading: dist/assets/index.css",
+  "  Uploading: dist/assets/index.js",
+  "Upload complete. 3 files uploaded successfully.",
+  "Configuring reverse proxy routing...",
+  "DNS routing: pushpit-portfolio.pushpitjain.tech → S3 bucket",
+  "Health check passed ✓",
+  "🚀 Deployment complete! Your site is live.",
+];
+
+const DEMO_LOG_INTERVAL_MS = 350;
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function ProjectDetailsPage() {
   const params = useParams();
-  const PROJECT_ID: string = params.PROJECT_ID as string;
+  const searchParams = useSearchParams();
+  const isDemoMode = searchParams.get("demo") === "true";
+
+  const PROJECT_ID: string = isDemoMode
+    ? "pushpit-portfolio"
+    : (params.PROJECT_ID as string);
+
   const [isRedeploying, setIsRedeploying] = useState(false);
   const [project, setProject] = useState<projectType | null>(null);
   const { user, isLoaded } = useUser();
@@ -39,7 +95,6 @@ export default function ProjectDetailsPage() {
   const [logs, setLogs] = useState<string[]>([]);
 
   const getStatusIcon = (status: string) => {
-    console.log("Status:", status);
     switch (status) {
       case "Live":
         return (
@@ -67,7 +122,9 @@ export default function ProjectDetailsPage() {
     }
   };
 
+  // ── Load persisted logs (real mode only) ─────────────────────────────────
   useEffect(() => {
+    if (isDemoMode) return;
     if (PROJECT_ID) {
       const storedLogs = localStorage.getItem(`build_logs:${PROJECT_ID}`);
       if (storedLogs) {
@@ -78,71 +135,85 @@ export default function ProjectDetailsPage() {
         }
       }
     }
-  }, [PROJECT_ID]);
+  }, [PROJECT_ID, isDemoMode]);
 
+  // ── Load project data ─────────────────────────────────────────────────────
   useEffect(() => {
+    if (isDemoMode) {
+      setProject(DEMO_PROJECT);
+      return;
+    }
     const fetchAndSetProject = async () => {
       const fetchedProjects =
         ((await user?.publicMetadata?.projects) as projectType[]) || [];
       const foundProject = Object.values(fetchedProjects).find(
         (p) => p.PROJECT_ID === PROJECT_ID
       );
-      if (foundProject) {
-        setProject(foundProject);
-      } else {
-        setProject(null);
-      }
+      setProject(foundProject ?? null);
     };
+    if (user) fetchAndSetProject();
+  }, [isDemoMode, isLoaded, user, PROJECT_ID]);
 
-    if (user) {
-      fetchAndSetProject();
-    }
-  }, [isLoaded, user, PROJECT_ID]);
-
+  // ── Socket (real mode only) ───────────────────────────────────────────────
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
+    if (isDemoMode) return;
     if (!socketRef.current) {
       socketRef.current = io(process.env.NEXT_PUBLIC_SOCKET_URL || "");
       socketRef.current.connect();
     }
-
     return () => {
       socketRef.current?.disconnect();
     };
-  }, [PROJECT_ID]);
+  }, [PROJECT_ID, isDemoMode]);
 
   useEffect(() => {
-    console.log(`Subscribing to build_logs:${PROJECT_ID}`);
+    if (isDemoMode) return;
     socketRef.current?.emit("Subscribe", `build_logs:${PROJECT_ID}`);
-  }, [PROJECT_ID]);
+  }, [PROJECT_ID, isDemoMode]);
 
+  // ── Demo: simulate logs streaming in, then flip status to Live ──────────
+  useEffect(() => {
+    if (!isDemoMode) return;
+    let index = 0;
+    const timer = setInterval(() => {
+      if (index < DEMO_LOGS.length) {
+        setLogs((prev) => [...prev, DEMO_LOGS[index]]);
+        index++;
+      } else {
+        clearInterval(timer);
+        setTimeout(() => {
+          setProject((prev) =>
+            prev ? { ...prev, STATUS: "Live" } : prev
+          );
+        }, 600);
+      }
+    }, DEMO_LOG_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [isDemoMode]);
+
+  // ── Auto-scroll on new log ────────────────────────────────────────────────
+  useEffect(() => {
+    logContainerRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
+
+  // ── Real deploy handlers ──────────────────────────────────────────────────
   const handleDeploy = async () => {
-    if (!project) {
-      toast.error("Project not found.");
-      return;
-    }
+    if (!project) { toast.error("Project not found."); return; }
     const res1 = await fetch("/api/updateproject", {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         PROJECT_ID: project.PROJECT_ID,
         LAST_DEPLOY: new Date().toISOString(),
         STATUS: "Building",
       }),
     });
-    if (!res1.ok) {
-      toast.error("Failed to add project.");
-      return;
-    }
-
+    if (!res1.ok) { toast.error("Failed to add project."); return; }
     const res = await fetch("/api/deploy", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         GIT_REPOSITORY_URL: project.GIT_REPOSITORY_URL,
         PROJECT_ID: project.PROJECT_ID,
@@ -152,16 +223,14 @@ export default function ProjectDetailsPage() {
         BUILD_FOLDER_NAME: project.BUILD_FOLDER_NAME,
       }),
     });
-    if (!res.ok) {
-      toast.error("Deployment failed.");
-      return;
-    }
+    if (!res.ok) { toast.error("Deployment failed."); return; }
   };
+
   const handleRedeploy = async () => {
+    if (isDemoMode) { toast.info("Redeploy is disabled in demo mode."); return; }
     setIsRedeploying(true);
     setLogs([]);
     localStorage.removeItem(`build_logs:${PROJECT_ID}`);
-
     try {
       await handleDeploy();
       toast.success("Redeployment started successfully.");
@@ -173,55 +242,34 @@ export default function ProjectDetailsPage() {
     }
     logContainerRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
   const handleSocketIncomingMessage = useCallback(
     async (message: string) => {
       try {
         const log = message;
-
-        if (log == "DONE") {
+        if (log === "DONE") {
           toast.success("Deployment completed successfully.");
           await fetch("/api/updateproject", {
             method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               PROJECT_ID: project?.PROJECT_ID,
               LAST_DEPLOY: new Date().toISOString(),
               STATUS: "Live",
             }),
           });
-          // visit site in new tab
-          toast.success(
-            `Project ${project?.PROJECT_ID} is live! Visiting site...`
-          );
-          if (
-            !process.env.NEXT_PUBLIC_APP_URL_DOMAIN 
-            // ||
-            // process.env.NEXT_PUBLIC_APP_URL_DOMAIN.startsWith("localhost")
-          ) {
-            toast.error(
-              "Preview links are not available currently. Sorry for the inconvenience."
-            );
+          toast.success(`Project ${project?.PROJECT_ID} is live! Visiting site...`);
+          if (!process.env.NEXT_PUBLIC_APP_URL_DOMAIN) {
+            toast.error("Preview links are not available currently. Sorry for the inconvenience.");
             return;
           }
-          window.open(
-            `http://${project?.PROJECT_ID}.${process.env.NEXT_PUBLIC_APP_URL_DOMAIN}`,
-            "_blank"
-          );
+          window.open(`http://${project?.PROJECT_ID}.${process.env.NEXT_PUBLIC_APP_URL_DOMAIN}`, "_blank");
           return;
         }
-
         setLogs((prev) => {
           const updatedLogs = [...prev, log];
-          if (
-            log != "Connected to the socket" &&
-            log != `Joined build_logs: ${PROJECT_ID}`
-          ) {
-            localStorage.setItem(
-              `build_logs:${PROJECT_ID}`,
-              JSON.stringify(updatedLogs)
-            );
+          if (log !== "Connected to the socket" && log !== `Joined build_logs: ${PROJECT_ID}`) {
+            localStorage.setItem(`build_logs:${PROJECT_ID}`, JSON.stringify(updatedLogs));
           }
           return updatedLogs;
         });
@@ -230,20 +278,21 @@ export default function ProjectDetailsPage() {
         console.error("Error parsing message:", err);
       }
     },
-    [PROJECT_ID]
+    [PROJECT_ID, project]
   );
 
   useEffect(() => {
+    if (isDemoMode) return;
     socketRef.current?.on("message", handleSocketIncomingMessage);
-
     return () => {
       socketRef.current?.off("message", handleSocketIncomingMessage);
     };
-  }, [handleSocketIncomingMessage]);
+  }, [handleSocketIncomingMessage, isDemoMode]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
   };
+
   const handleDownload = () => {
     const blob = new Blob([logs.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -258,23 +307,18 @@ export default function ProjectDetailsPage() {
 
   const handleVisitSiteClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (
-      !process.env.NEXT_PUBLIC_APP_URL_DOMAIN 
-      // ||
-      // process.env.NEXT_PUBLIC_APP_URL_DOMAIN.startsWith("localhost")
-    ) {
-      toast.error(
-        "Preview links are not available currently. Sorry for the inconvenience."
-      );
+    if (isDemoMode) {
+      window.open("/sample-deployment/index.html", "_blank");
       return;
     }
-    window.open(
-      `http://${project?.PROJECT_ID}.${process.env.NEXT_PUBLIC_APP_URL_DOMAIN}`,
-      "_blank"
-    );
+    if (!process.env.NEXT_PUBLIC_APP_URL_DOMAIN) {
+      toast.error("Preview links are not available currently. Sorry for the inconvenience.");
+      return;
+    }
+    window.open(`http://${project?.PROJECT_ID}.${process.env.NEXT_PUBLIC_APP_URL_DOMAIN}`, "_blank");
   };
 
-  if (!isLoaded) {
+  if (!isDemoMode && !isLoaded) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
         <div className="flex flex-col items-center">
@@ -285,17 +329,29 @@ export default function ProjectDetailsPage() {
       </div>
     );
   }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+
+      {/* Demo Banner */}
+      {isDemoMode && (
+        <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white py-2.5 px-4 text-center text-sm font-medium flex items-center justify-center gap-2">
+          <FlaskConical className="w-4 h-4 shrink-0" />
+          <span>
+            <strong>Demo Mode</strong> — This is a sample walkthrough for demonstration purposes. No actual deployment will occur.
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/projects">
+                <Link href={isDemoMode ? "/demo/configure" : "/projects"}>
                   <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Projects
+                  {isDemoMode ? "Back to Config" : "Back to Projects"}
                 </Link>
               </Button>
               <Separator orientation="vertical" className="h-6" />
@@ -321,7 +377,6 @@ export default function ProjectDetailsPage() {
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
                   {project?.PROJECT_ID}
                 </h1>
-
                 {getStatusIcon(project?.STATUS || "Unknown")}
               </div>
               <p className="text-gray-600 dark:text-gray-400 mb-4">
@@ -353,13 +408,12 @@ export default function ProjectDetailsPage() {
               </Button>
               <Button
                 onClick={handleRedeploy}
-                disabled={isRedeploying}
-                className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                disabled={isRedeploying || isDemoMode}
+                className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:opacity-50"
+                title={isDemoMode ? "Disabled in demo mode" : undefined}
               >
                 <RefreshCw
-                  className={`w-4 h-4 mr-2 ${
-                    isRedeploying ? "animate-spin" : ""
-                  }`}
+                  className={`w-4 h-4 mr-2 ${isRedeploying ? "animate-spin" : ""}`}
                 />
                 {isRedeploying ? "Redeploying..." : "Redeploy"}
               </Button>
@@ -367,10 +421,9 @@ export default function ProjectDetailsPage() {
           </div>
         </div>
 
-        <Tabs defaultValue="overview" className="space-y-6">
+        <Tabs defaultValue={isDemoMode ? "logs" : "overview"} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            {/* <TabsTrigger value="deployments">Deployments</TabsTrigger> */}
             <TabsTrigger value="logs">Logs</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
@@ -424,42 +477,24 @@ export default function ProjectDetailsPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                      Project ID
-                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Project ID</p>
                     <p className="font-mono text-sm">{project?.PROJECT_ID}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                      Base Directory
-                    </p>
-                    <p className="font-mono text-sm">
-                      {project?.BASE_DIR || "./"}
-                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Base Directory</p>
+                    <p className="font-mono text-sm">{project?.BASE_DIR || "./"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                      Install Command
-                    </p>
-                    <p className="font-mono text-sm">
-                      {project?.INSTALL_COMMAND}
-                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Install Command</p>
+                    <p className="font-mono text-sm">{project?.INSTALL_COMMAND}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                      Build Command
-                    </p>
-                    <p className="font-mono text-sm">
-                      {project?.BUILD_COMMAND}
-                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Build Command</p>
+                    <p className="font-mono text-sm">{project?.BUILD_COMMAND}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                      Build Folder
-                    </p>
-                    <p className="font-mono text-sm">
-                      {project?.BUILD_FOLDER_NAME}
-                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Build Folder</p>
+                    <p className="font-mono text-sm">{project?.BUILD_FOLDER_NAME}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -472,6 +507,18 @@ export default function ProjectDetailsPage() {
                 <CardTitle className="flex items-center space-x-2">
                   <Terminal className="w-5 h-5" />
                   <span>Deployment Logs</span>
+                  {isDemoMode && project?.STATUS === "Building" && (
+                    <span className="ml-auto flex items-center gap-1.5 text-xs font-normal text-yellow-600 dark:text-yellow-400">
+                      <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse inline-block" />
+                      Live streaming...
+                    </span>
+                  )}
+                  {isDemoMode && project?.STATUS === "Live" && (
+                    <span className="ml-auto flex items-center gap-1.5 text-xs font-normal text-green-600 dark:text-green-400">
+                      <CheckCircle className="w-3 h-3" />
+                      Complete
+                    </span>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -481,13 +528,33 @@ export default function ProjectDetailsPage() {
                       &gt; {log}
                     </div>
                   ))}
+                  <div ref={logContainerRef} />
                 </div>
-                <div className="flex justify-end mt-4">
-                  <Button variant="outline" size="sm" onClick={handleDownload}>
-                    <Download className="w-4 h-4 mr-2" />
-                    Download Logs
-                  </Button>
-                </div>
+
+                {/* Demo: Visit site button appears after deployment is live */}
+                {isDemoMode && project?.STATUS === "Live" && (
+                  <div className="mt-4 flex items-center justify-between">
+                    <p className="text-sm text-green-600 dark:text-green-400 font-medium">
+                      🎉 Deployment complete! Your site is live.
+                    </p>
+                    <Button
+                      className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+                      onClick={() => window.open("/sample-deployment/index.html", "_blank")}
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Visit Deployed Site
+                    </Button>
+                  </div>
+                )}
+
+                {!isDemoMode && (
+                  <div className="flex justify-end mt-4">
+                    <Button variant="outline" size="sm" onClick={handleDownload}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Logs
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -499,10 +566,9 @@ export default function ProjectDetailsPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600 dark:text-gray-400 mb-4">
-                  Configure your project deployment settings and environment
-                  variables.
+                  Configure your project deployment settings and environment variables.
                 </p>
-                <Button variant="outline">
+                <Button variant="outline" disabled={isDemoMode} title={isDemoMode ? "Disabled in demo mode" : undefined}>
                   <Settings className="w-4 h-4 mr-2" />
                   Edit Settings
                 </Button>
