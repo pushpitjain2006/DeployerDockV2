@@ -1,10 +1,10 @@
 "use client";
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, GitBranch, Globe, Zap } from "lucide-react";
+import { ArrowRight, GitBranch, Globe, PlayCircle, Zap } from "lucide-react";
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "@/components/ui/badge";
-import { redirect } from "next/navigation";
+import Link from "next/link";
 
 const Hero = () => {
   return (
@@ -23,15 +23,27 @@ const Hero = () => {
           <p className="text-xl sm:text-2xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto leading-relaxed">
             From Git to live in seconds. No config. No stress.
           </p>
-          <Button
-            size="lg"
-            onClick={() => {
-              redirect("/dashboard");
-            }}
-            className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-lg px-8 py-6 rounded-xl shadow-2xl hover:shadow-blue-500/25 transition-all duration-300 hover:scale-105"
-          >
-            Get Started <ArrowRight className="ml-2 w-5 h-5" />
-          </Button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Button
+              size="lg"
+              onClick={() => {
+                window.location.href = "/dashboard";
+              }}
+              className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-lg px-8 py-6 rounded-xl shadow-2xl hover:shadow-blue-500/25 transition-all duration-300 hover:scale-105"
+            >
+              Get Started <ArrowRight className="ml-2 w-5 h-5" />
+            </Button>
+            <Link href="/demo/configure">
+              <Button
+                size="lg"
+                variant="outline"
+                className="text-lg px-8 py-6 rounded-xl border-2 border-purple-400/50 text-purple-600 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-500 transition-all duration-300 hover:scale-105 backdrop-blur-sm"
+              >
+                <PlayCircle className="mr-2 w-5 h-5" />
+                Try it
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Hero Mockup */}

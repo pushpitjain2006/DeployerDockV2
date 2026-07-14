@@ -17,6 +17,8 @@ export default clerkMiddleware(
       "/register",
       "/forgot-password",
       "/reset-password",
+      "/demo(.*)",
+      "/sample(.*)",
     ],
   }
 );
